@@ -1,0 +1,11 @@
+{
+    "working_directory": "",
+    "paths": {
+      "images": "assets/men-casual--lifestyle/",
+      "csv": "csv/"
+    },
+    "parameters": {
+      "timeout": 10,
+      "target_url": "https://www.amarbay.com/product/categories?category=men%20casual-2448"
+    }
+}
