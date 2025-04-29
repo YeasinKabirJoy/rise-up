@@ -257,7 +257,7 @@ class Extraction:
                 print(f"Failed to download {url}: Status code {response.status_code}")
                 return False
         except Exception as e:
-            print(f"Error downloading {url}: {e}")
+            print(f"Error downloading {url}: {str(e)}")
             return False
     
     def process_image_download(self,data,image_dir):
@@ -297,6 +297,29 @@ class Extraction:
             print(f"Processed images for shoe {shoe_id}")
         return data
     
+    def create_excel(self,file_path,data):
+        headers = ['shoe_name', 'shoe_id', 'price', 'discount', 'color_code', 'image1', 'image2', 'image3', 'image4', 'image5']
+        with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=headers)
+            writer.writeheader()
+            
+            for shoe in data:
+                row = {
+                    'shoe_name': shoe.get('shoe_name', ''),
+                    'shoe_id': shoe.get('shoe_id', ''),
+                    'price': shoe.get('price', ''),
+                    'discount': shoe.get('discount', ''),
+                    'color_code': shoe.get('color_code', ''),
+                    'image1': shoe.get('image1', ''),
+                    'image2': shoe.get('image2', ''),
+                    'image3': shoe.get('image3', ''),
+                    'image4': shoe.get('image4', ''),
+                    'image5': shoe.get('image5', '')
+                }
+                writer.writerow(row)
+
+        print(f"products.csv created in {file_path}")
+    
 
 if __name__ == '__main__':
 
@@ -308,6 +331,9 @@ if __name__ == '__main__':
     image_dir = os.path.join(config["working_directory"], config["paths"]["image"])
     os.makedirs(image_dir, exist_ok=True)
 
+    csv_dir = os.path.join(config["working_directory"], config["paths"]["csv"])
+    os.makedirs(csv_dir, exist_ok=True)
+    csv_file_path = os.path.join(csv_dir, "products.csv")
 
 
     driver = webdriver.Chrome()
@@ -328,6 +354,6 @@ if __name__ == '__main__':
 
     try:
         data_for_excel = extraction.process_image_download(data,image_dir)
-        
+        extraction.create_excel(csv_file_path,data_for_excel)
     except Exception as e:
         print(f'Error: {str(e)}')
