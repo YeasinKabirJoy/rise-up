@@ -17,7 +17,7 @@ import csv
 
 def load_config(file_path='config.json'):
     try:
-        # Load the JSON file
+        
         with open(file_path, 'r') as file:
             config = json.load(file)
         
@@ -74,10 +74,7 @@ def find_element(driver,selector_type, selector,timeout):
     attempt = 1
     while attempt <= max_retries:
         try:
-            # Initialize WebDriverWait with the timeout from config
             wait = WebDriverWait(driver, timeout)
-            
-            # Wait until all elements are visible
             elements = wait.until(EC.visibility_of_element_located((selector_type, selector)))
             
             print(f"Successfully found elementm on attempt {attempt}")
@@ -96,7 +93,7 @@ def find_element(driver,selector_type, selector,timeout):
         attempt += 1
         if attempt <= max_retries:
             print(f"Retrying... ({attempt}/{max_retries})")
-            time.sleep(1)  # Brief pause before retrying to avoid overwhelming the server
+            time.sleep(1)
     
     print(f"All {max_retries} attempts failed")
     return None
@@ -179,10 +176,13 @@ class Extraction:
 
         print("Finding image links")
         image_div = find_element(driver,By.XPATH,xpath["product_image_galary"],self.timeout)
-        image_link_tag = image_div.find_elements(By.TAG_NAME,'img')
+        if image_div:
+            image_link_tag = image_div.find_elements(By.TAG_NAME,'img')
 
-        for link_tag in image_link_tag:
-            image_link.append(link_tag.get_attribute('src'))
+            for link_tag in image_link_tag:
+                image_link.append(link_tag.get_attribute('src'))
+        else:
+            print("Error finding images")
 
 
         print("Finding shoe name")
@@ -210,11 +210,13 @@ class Extraction:
             price = ''
             print("Price not found")
         
+        is_discounted = True
         print("Finding Discount")
         discount_span = find_element(driver,By.XPATH,xpath["discount"],self.timeout)
         if discount_span:
             discount = extract_discount(discount_span.text)
             if discount is None:
+                is_discounted = False
                 discount = ''
                 print("Invalid discount format")
         else:
@@ -223,9 +225,15 @@ class Extraction:
         
 
         print("Finding color code")
-        color_code_span = find_element(driver,By.XPATH,xpath["color_code"],self.timeout)
+        if is_discounted:
+            xPath = xpath["color_code"]
+        else:
+            xPath = xpath["discount"]
+
+        color_code_span = find_element(driver,By.XPATH,xPath,self.timeout)
         if color_code_span:
             color_code = color_code_span.text
+            print(color_code)
         else:
             color_code = ''
             print("Color code not found")
@@ -335,8 +343,13 @@ if __name__ == '__main__':
     os.makedirs(csv_dir, exist_ok=True)
     csv_file_path = os.path.join(csv_dir, "products.csv")
 
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
 
-    driver = webdriver.Chrome()
+    driver = webdriver.Chrome(options=chrome_options)
+    driver.maximize_window()
+
     try:
         extraction = Extraction(driver,config)
         extraction.load_target()
