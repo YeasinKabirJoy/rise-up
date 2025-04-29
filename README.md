@@ -41,7 +41,7 @@ This README provides step-by-step instructions to set up and run the project.
    - Example `config.json`:
      ```json
      {
-         "working_directory": "D:/Projects/Assignment/",
+         "working_directory": "D:/Projects/Assignment/rise-up",
          "paths": {
            "image": "assets/men-casual--lifestyle/",
            "csv": "csv/"
