@@ -142,22 +142,33 @@ class Extraction:
 
         print("Finding product links")
         product_row = find_element(driver,By.XPATH,xpath["product_row"],self.timeout)
-        link_tag = product_row.find_elements(By.CLASS_NAME,'p-img-container')
-        for link in link_tag:
-            links.append(link.get_attribute('href'))
-        
-
-        pagination_ul = find_element(driver,By.XPATH,xpath["pagination"],self.timeout)
-        pages = pagination_ul.find_elements(By.TAG_NAME,'li')
-
-        for i in range(2,len(pages)-1):
-            print(f"Going to page: {i}")
-            pages[i].click()
-            time.sleep(5)
-            product_row = find_element(driver,By.XPATH,xpath["product_row"],self.timeout)
+        if product_row:
             link_tag = product_row.find_elements(By.CLASS_NAME,'p-img-container')
             for link in link_tag:
                 links.append(link.get_attribute('href'))
+
+        else:
+            print("Product rows not found in page 1")
+
+        pagination_ul = find_element(driver,By.XPATH,xpath["pagination"],self.timeout)
+        if pagination_ul:
+            pages = pagination_ul.find_elements(By.TAG_NAME,'li')
+        else:
+            print("No pagination found")
+            return links
+        
+        for i in range(2,len(pages)-1):
+            print(f"Going to page: {i}")
+            pages[i].click()
+            time.sleep(2)
+            product_row = find_element(driver,By.XPATH,xpath["product_row"],self.timeout)
+            if product_row:
+                link_tag = product_row.find_elements(By.CLASS_NAME,'p-img-container')
+                for link in link_tag:
+                    links.append(link.get_attribute('href'))
+            else:
+                print(f"Product rows not found in page {i}")
+
 
         return links
         
@@ -336,16 +347,21 @@ if __name__ == '__main__':
     if config is None:
         exit(1)
 
-    image_dir = os.path.join(config["working_directory"], config["paths"]["image"])
-    os.makedirs(image_dir, exist_ok=True)
+    try:
+        image_dir = os.path.join(config["working_directory"], config["paths"]["image"])
+        os.makedirs(image_dir, exist_ok=True)
 
-    csv_dir = os.path.join(config["working_directory"], config["paths"]["csv"])
-    os.makedirs(csv_dir, exist_ok=True)
-    csv_file_path = os.path.join(csv_dir, "products.csv")
+        csv_dir = os.path.join(config["working_directory"], config["paths"]["csv"])
+        os.makedirs(csv_dir, exist_ok=True)
+        csv_file_path = os.path.join(csv_dir, "products.csv").replace('\\', '/')
+
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        exit(1)
 
     chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
+    # chrome_options.add_argument("--headless")
+    # chrome_options.add_argument("--disable-gpu")
 
     driver = webdriver.Chrome(options=chrome_options)
     driver.maximize_window()
