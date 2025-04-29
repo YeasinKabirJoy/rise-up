@@ -1,7 +1,7 @@
 {
-    "working_directory": "",
+    "working_directory": "D:/projects/Assignment/",
     "paths": {
-      "images": "assets/men-casual--lifestyle/",
+      "image": "assets/men-casual--lifestyle/",
       "csv": "csv/"
     },
     "parameters": {
