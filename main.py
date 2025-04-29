@@ -1,5 +1,6 @@
 import os
 import time
+from urllib.parse import urlparse
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -7,11 +8,12 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver import Keys
-import pandas as pd
 import re
 import json
 from xpath_inventory import xpath
 import pprint
+import requests
+import csv
 
 def load_config(file_path='config.json'):
     try:
@@ -138,40 +140,45 @@ class Extraction:
 
     def get_product_links(self):
         
+        driver = self.driver
         links = []
+
         print("Finding product links")
-        product_row = find_element(self.driver,By.XPATH,xpath["product_row"],self.timeout)
+        product_row = find_element(driver,By.XPATH,xpath["product_row"],self.timeout)
         link_tag = product_row.find_elements(By.CLASS_NAME,'p-img-container')
         for link in link_tag:
             links.append(link.get_attribute('href'))
         
 
-        pagination_ul = find_element(self.driver,By.XPATH,xpath["pagination"],self.timeout)
+        pagination_ul = find_element(driver,By.XPATH,xpath["pagination"],self.timeout)
         pages = pagination_ul.find_elements(By.TAG_NAME,'li')
 
         for i in range(2,len(pages)-1):
             print(f"Going to page: {i}")
             pages[i].click()
             time.sleep(5)
-            product_row = find_element(self.driver,By.XPATH,xpath["product_row"],self.timeout)
+            product_row = find_element(driver,By.XPATH,xpath["product_row"],self.timeout)
             link_tag = product_row.find_elements(By.CLASS_NAME,'p-img-container')
             for link in link_tag:
                 links.append(link.get_attribute('href'))
 
         return links
-    
+        
     def get_product_details(self,link):
-        print(f"Extracting from: {link}")
 
-        _ = {}
+        driver = self.driver
         image_link = []
-        self.driver.get(link)
+        _ = {}
+
+        print(f"Extracting from: {link}")
+        
+        driver.get(link)
         WebDriverWait(driver, 10).until(
             lambda driver: driver.execute_script("return document.readyState") == "complete"
         )
 
         print("Finding image links")
-        image_div = find_element(self.driver,By.XPATH,xpath["product_image_galary"],self.timeout)
+        image_div = find_element(driver,By.XPATH,xpath["product_image_galary"],self.timeout)
         image_link_tag = image_div.find_elements(By.TAG_NAME,'img')
 
         for link_tag in image_link_tag:
@@ -179,7 +186,7 @@ class Extraction:
 
 
         print("Finding shoe name")
-        shoe_name_h1 = find_element(self.driver,By.XPATH,xpath["shoe_name"],self.timeout)
+        shoe_name_h1 = find_element(driver,By.XPATH,xpath["shoe_name"],self.timeout)
         if shoe_name_h1:
             shoe_name = shoe_name_h1.text
         else:
@@ -188,7 +195,7 @@ class Extraction:
 
 
         print("Finding shoe id")
-        shoe_id_p = find_element(self.driver,By.XPATH,xpath["shoe_id"],self.timeout)
+        shoe_id_p = find_element(driver,By.XPATH,xpath["shoe_id"],self.timeout)
         if shoe_id_p:
             shoe_id = shoe_id_p.text
         else:
@@ -196,7 +203,7 @@ class Extraction:
             print("Shoe id not found")
 
         print("Finding price")
-        price_div = find_element(self.driver,By.XPATH,xpath["price"],self.timeout)
+        price_div = find_element(driver,By.XPATH,xpath["price"],self.timeout)
         if price_div:
             price = price_div.text.strip("BDT ")
         else:
@@ -204,7 +211,7 @@ class Extraction:
             print("Price not found")
         
         print("Finding Discount")
-        discount_span = find_element(self.driver,By.XPATH,xpath["discount"],self.timeout)
+        discount_span = find_element(driver,By.XPATH,xpath["discount"],self.timeout)
         if discount_span:
             discount = extract_discount(discount_span.text)
             if discount is None:
@@ -216,7 +223,7 @@ class Extraction:
         
 
         print("Finding color code")
-        color_code_span = find_element(self.driver,By.XPATH,xpath["color_code"],self.timeout)
+        color_code_span = find_element(driver,By.XPATH,xpath["color_code"],self.timeout)
         if color_code_span:
             color_code = color_code_span.text
         else:
@@ -236,26 +243,91 @@ class Extraction:
                 break
 
         return _
+        
+
+    def download_image(self,url, save_path, timeout):
+        try:
+            response = requests.get(url, stream=True, timeout=timeout)
+            if response.status_code == 200:
+                with open(save_path, 'wb') as f:
+                    for chunk in response.iter_content(1024):
+                        f.write(chunk)
+                return True
+            else:
+                print(f"Failed to download {url}: Status code {response.status_code}")
+                return False
+        except Exception as e:
+            print(f"Error downloading {url}: {e}")
+            return False
+    
+    def process_image_download(self,data,image_dir):
+        for shoe in data:
+            shoe_id = shoe['shoe_id']
+            shoe_dir = os.path.join(image_dir, shoe_id)
+            os.makedirs(shoe_dir, exist_ok=True)
+            
+            for i in range(1, 6):
+                image_key = f'image{i}'
+                if image_key in shoe and shoe[image_key]:
+                    image_url = shoe[image_key]
+                    
+
+                    # if not image_url.startswith('http'):
+                    #     print(f"Skipping invalid URL for shoe {shoe_id}: {image_url}")
+                    #     shoe[image_key] = ""
+                    #     continue
+
+                    # file extension from url
+                    parsed_url = urlparse(image_url)
+                    file_name = os.path.basename(parsed_url.path)
+                    extension = os.path.splitext(file_name)[1].lower()
+                    if extension not in ('.png', '.jpg', '.jpeg'):
+                        extension = '.jpg'  
+                   
+                    fixed_file_name = f"image{i}{extension}"
+                    save_path = os.path.join(shoe_dir, fixed_file_name)
+                   
+                    if self.download_image(image_url, save_path, self.timeout):
+                        relative_path = os.path.join(self.config["paths"]["image"], shoe_id, fixed_file_name).replace('\\', '/')
+                        shoe[image_key] = relative_path
+                    else:
+                        shoe[image_key] = ""
+                        print(f"Failed to download image {image_url} for shoe {shoe_id}")
+            
+            print(f"Processed images for shoe {shoe_id}")
+        return data
+    
 
 if __name__ == '__main__':
 
     data = []
-    data_for_excel = []
-
     config = load_config()
     if config is None:
         exit(1)
 
-    
+    image_dir = os.path.join(config["working_directory"], config["paths"]["image"])
+    os.makedirs(image_dir, exist_ok=True)
+
+
+
     driver = webdriver.Chrome()
     try:
-        excration = Extraction(driver,config)
-        excration.load_target()
-        links = excration.get_product_links()
+        extraction = Extraction(driver,config)
+        extraction.load_target()
+        links = extraction.get_product_links()
         for link in links:
-            data.append(excration.get_product_details(link))
-        pprint.pprint(data)
+            extracted_data = extraction.get_product_details(link)
+            data.append(extracted_data)
+
     except Exception as e:
         print(f'Error: {str(e)}')
+        driver.quit()
+        exit(1)
     finally:
         driver.quit()
+
+    try:
+        data_for_excel = extraction.process_image_download(data,image_dir)
+        
+    except Exception as e:
+        print(f'Error: {str(e)}')
